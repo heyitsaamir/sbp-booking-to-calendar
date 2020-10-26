@@ -30,7 +30,7 @@ function getTimezone(date) {
   }
 }
 
-const AamBushCalendar = CalendarApp.getCalendarsByName(calendarName)[0];
+const MainCalendar = CalendarApp.getCalendarsByName(calendarName)[0];
 
 function parseDate(message, subjectPrefix) {
   const dateString = message.substr(subjectPrefix.length);
@@ -68,7 +68,7 @@ function getEndTime(date, timeInHours) {
 
 function getExistingEvent(date, timeInHours, eventName) {
   const endTime = getEndTime(date, timeInHours);
-  const events = AamBushCalendar.getEvents(date, endTime);
+  const events = MainCalendar.getEvents(date, endTime);
   const res =  events.find((event) => { return event.getTitle() === eventName });
   return res;
 }
@@ -76,7 +76,7 @@ function getExistingEvent(date, timeInHours, eventName) {
 function createEvent(date, timeInHours, eventName) {
   Logger.log('Creating event for ', date);
   const endTime = getEndTime(date, timeInHours);
-  AamBushCalendar.createEvent(eventName, date, endTime)
+  MainCalendar.createEvent(eventName, date, endTime)
 }
 
 function createEventsForBouldering(config) {
