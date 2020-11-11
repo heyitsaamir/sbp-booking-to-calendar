@@ -32,7 +32,7 @@ function getTimezone(date) {
   }
 }
 
-const AamBushCalendar = CalendarApp.getCalendarsByName(calendarName)[0];
+const MainCalendar = CalendarApp.getCalendarsByName(calendarName)[0];
 
 function parseDate(message, subjectPrefix) {
   const dateString = message.substr(subjectPrefix.length);
@@ -70,7 +70,7 @@ function getEndTime(date, timeInHours) {
 
 function getExistingEvent(date, timeInHours, eventName) {
   const endTime = getEndTime(date, timeInHours);
-  const events = AamBushCalendar.getEvents(date, endTime);
+  const events = MainCalendar.getEvents(date, endTime);
   const res =  events.find((event) => { return event.getTitle().search(eventName) >= 0 });
   return res;
 }
@@ -94,7 +94,7 @@ function createEvent(date, config, thread) {
   }
   
   const eventName = config.eventName + tagsAsString;
-  AamBushCalendar.createEvent(eventName, date, endTime)
+  MainCalendar.createEvent(eventName, date, endTime)
   Logger.log('Event ' + eventName + 'created', date);
 }
 
