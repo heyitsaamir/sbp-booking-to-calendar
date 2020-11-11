@@ -4,6 +4,7 @@ const ClimbingReservation = {
   prefix: "Booking Confirmed: Seattle Bouldering Project - ",
   timeInHours: 2,
   eventName: 'Climbing Reservation',
+  wordsToSearch: ['Climbing Reservation','Upper Walls Reservations', 'Main Floor Climbing', 'Lower Floor Climbing']
 }
 
 const FitnessReservation = {
@@ -12,6 +13,7 @@ const FitnessReservation = {
   prefix: "Booking Confirmed: Seattle Bouldering Project - ",
   timeInHours: 1.5,
   eventName: 'Fitness Reservation',
+  wordsToSearch: [],
 }
 
 const calendarName = 'AamBush';
@@ -30,7 +32,7 @@ function getTimezone(date) {
   }
 }
 
-const MainCalendar = CalendarApp.getCalendarsByName(calendarName)[0];
+const AamBushCalendar = CalendarApp.getCalendarsByName(calendarName)[0];
 
 function parseDate(message, subjectPrefix) {
   const dateString = message.substr(subjectPrefix.length);
@@ -68,15 +70,32 @@ function getEndTime(date, timeInHours) {
 
 function getExistingEvent(date, timeInHours, eventName) {
   const endTime = getEndTime(date, timeInHours);
-  const events = MainCalendar.getEvents(date, endTime);
-  const res =  events.find((event) => { return event.getTitle() === eventName });
+  const events = AamBushCalendar.getEvents(date, endTime);
+  const res =  events.find((event) => { return event.getTitle().search(eventName) >= 0 });
   return res;
 }
 
-function createEvent(date, timeInHours, eventName) {
+function getTagsInThread(config, thread) {
+  const messages = thread.getMessages();
+  if (!messages || messages.length <= 0) return [];
+  const firstMessageBody = messages[0].getBody();
+  return config.wordsToSearch.filter(function (word) {
+    return firstMessageBody.toLowerCase().search(word.toLowerCase()) >= 0;
+  });
+}
+
+function createEvent(date, config, thread) {
   Logger.log('Creating event for ', date);
-  const endTime = getEndTime(date, timeInHours);
-  MainCalendar.createEvent(eventName, date, endTime)
+  const endTime = getEndTime(date, config.timeInHours);
+  const tagsInThread = getTagsInThread(config, thread);
+  let tagsAsString = '';
+  if (tagsInThread.length > 0) {
+    tagsAsString = ' (' + tagsInThread.join(', ') + ')';
+  }
+  
+  const eventName = config.eventName + tagsAsString;
+  AamBushCalendar.createEvent(eventName, date, endTime)
+  Logger.log('Event ' + eventName + 'created', date);
 }
 
 function createEventsForBouldering(config) {
@@ -86,10 +105,10 @@ function createEventsForBouldering(config) {
   
   Logger.log(threads.length + " found for this label (" + config.label + ")");
   for (var i = 0; i < threads.length; i++) {
-    const message = threads[i].getFirstMessageSubject();
-    const date = parseDate(message, config.prefix);
+    const messageSubject = threads[i].getFirstMessageSubject();
+    const date = parseDate(messageSubject, config.prefix);
     if (!getExistingEvent(date, config.timeInHours, config.eventName)) {
-      createEvent(date, config.timeInHours, config.eventName);
+      createEvent(date, config, threads[i]);
     }
   }
   } catch (error) {
