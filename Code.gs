@@ -1,22 +1,16 @@
 const ClimbingReservation = {
-  label: "SBP Booking",
-  cancellationLabel: "SBP Cancellation",
-  prefix: "Booking Confirmed: Seattle Bouldering Project - ",
-  timeInHours: 2,
-  eventName: 'Climbing Reservation',
-  wordsToSearch: ['Climbing Reservation','Upper Walls Reservations', 'Main Floor Climbing', 'Lower Floor Climbing']
+  label: "RGPro Booking",
+  cancelledPrefix: "Booking Cancelled",
+  bookingPrefix: "Booking Confirmed",
 }
 
-const FitnessReservation = {
-  label: "SBP Fitness",
-  cancellationLabel: "SBP Fitness Cancellation",
-  prefix: "Booking Confirmed: Seattle Bouldering Project - ",
-  timeInHours: 1.5,
-  eventName: 'Fitness Reservation',
-  wordsToSearch: [],
-}
+//const calendarName = 'Duy Hai Bui';
+//const MainCalendar = CalendarApp.getCalendarByName(calendarName)[0];
+const MainCalendar = CalendarApp.getDefaultCalendar();
 
-const calendarName = 'AamBush';
+const DATE_FORMAT = /(\w+) (\d{1,2}), (\d{1,2}:*\d{0,2}) (\w{2}) to (\d{1,2}:*\d{0,2}) (\w{2})/;
+const EVENT_FORMAT = /Event\W+(.+)\W*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/;
+const MAX_BOOKING_RANGE = 2 * 7 * 24 * 60 * 60 * 1000;
 
 function isDST(d) {
     let jan = new Date(d.getFullYear(), 0, 1).getTimezoneOffset();
@@ -32,16 +26,14 @@ function getTimezone(date) {
   }
 }
 
-const MainCalendar = CalendarApp.getCalendarsByName(calendarName)[0];
+function getEventType(message) {  
+  // GScript regex sux
+  const groups = message.match(EVENT_FORMAT);
+  Logger.log(JSON.stringify({groups}));
+  return groups[1];
+}
 
-function parseDate(message, subjectPrefix) {
-  const dateString = message.substr(subjectPrefix.length);
-  const groups = dateString.match(/(\w+) (\d{1,2}), (\d{1,2}:*\d{0,2}) (\w{2})/);
-  // Logger.log(groups);
-  const month = groups[1];
-  const day = groups[2];
-  const time = groups[3];
-  const amPm = groups[4];
+function timeStrToDate(year, month, day, time, amPm) {
   let hour;
   let minute;
   if (time.indexOf(":") >= 0) {
@@ -57,89 +49,84 @@ function parseDate(message, subjectPrefix) {
     hour = (parseInt(hour) + 12).toString();
   }
   
-  const formattedDateUTC = `${month} ${day} ${hour}:${minute} 2020 UTC`;
-  const formattedDateLocal = `${month} ${day} ${hour}:${minute} 2020 ${getTimezone(new Date(formattedDateUTC))}`;
+  const formattedDateUTC = `${month} ${day} ${hour}:${minute} ${year} UTC`;
+  const formattedDateLocal = `${month} ${day} ${hour}:${minute} ${year} ${getTimezone(new Date(formattedDateUTC))}`;
+  // Logger.log(JSON.stringify({formattedDateLocal}));
   const date = new Date(formattedDateLocal);
-  // Logger.log(date, formattedDate, dateString);
   return date;
 }
 
-function getEndTime(date, timeInHours) {
-  return new Date(date.getTime() + (timeInHours * 60 * 60 * 1000));
+function parseDate(message, year) {
+  const groups = message.match(DATE_FORMAT);
+  Logger.log(JSON.stringify({groups}));
+  const month = groups[1];
+  const day = groups[2];
+  const startTime = groups[3];
+  const startAmPm = groups[4];
+  const endTime = groups[5];
+  const endAmPm = groups[6];
+  return [timeStrToDate(year, month, day, startTime, startAmPm), timeStrToDate(year, month, day, endTime, endAmPm)];
 }
 
-function getExistingEvent(date, timeInHours, eventName) {
-  const endTime = getEndTime(date, timeInHours);
-  const events = MainCalendar.getEvents(date, endTime);
-  const res =  events.find((event) => { return event.getTitle().search(eventName) >= 0 });
+function getExistingFutureEvent(eventName) {
+  const startDate = new Date();
+  const endDate = new Date(startDate.getTime() + MAX_BOOKING_RANGE);
+  const events = MainCalendar.getEvents(startDate, endDate);
+  const res = events.find((event) => { return event.getTitle().includes(eventName) });
   return res;
 }
 
-function getTagsInThread(config, thread) {
-  const messages = thread.getMessages();
-  if (!messages || messages.length <= 0) return [];
-  const firstMessageBody = messages[0].getBody();
-  return config.wordsToSearch.filter(function (word) {
-    return firstMessageBody.toLowerCase().search(word.toLowerCase()) >= 0;
-  });
+function createEvent(startDate, endDate, eventName) {
+  Logger.log('Creating event for ', startDate);
+  MainCalendar.createEvent(eventName, startDate, endDate)
 }
 
-function createEvent(date, config, thread) {
-  Logger.log('Creating event for ', date);
-  const endTime = getEndTime(date, config.timeInHours);
-  const tagsInThread = getTagsInThread(config, thread);
-  let tagsAsString = '';
-  if (tagsInThread.length > 0) {
-    tagsAsString = ' (' + tagsInThread.join(', ') + ')';
-  }
-  
-  const eventName = config.eventName + tagsAsString;
-  MainCalendar.createEvent(eventName, date, endTime)
-  Logger.log('Event ' + eventName + 'created', date);
+function includesStr(text, searchStr) {
+  return text.startsWith(searchStr);
 }
 
-function createEventsForBouldering(config) {
+function syncCalendar(config) {
   try {
-  var label = GmailApp.getUserLabelByName(config.label);
-  var threads = label.getThreads();
-  
-  Logger.log(threads.length + " found for this label (" + config.label + ")");
-  for (var i = 0; i < threads.length; i++) {
-    const messageSubject = threads[i].getFirstMessageSubject();
-    const date = parseDate(messageSubject, config.prefix);
-    if (!getExistingEvent(date, config.timeInHours, config.eventName)) {
-      createEvent(date, config, threads[i]);
-    }
-  }
-  } catch (error) {
-    Logger.log(error);
-  }
-}
+    var label = GmailApp.getUserLabelByName(config.label);
+    // Oldest first
+    var threads = label.getThreads().reverse();
+    
+    for (var i = 0; i < threads.length; i++) {
+      const subject = threads[i].getFirstMessageSubject();
+      // Logger.log(JSON.stringify({subject}));
+      if (!subject.startsWith(config.bookingPrefix) && !subject.startsWith(config.cancelledPrefix)){
+        continue;
+      }
 
-function removeEventsForBouldering(config) {
-  try {
-  var label = GmailApp.getUserLabelByName(config.cancellationLabel);
-  var threads = label.getThreads();
-  
-  Logger.log(threads.length + " found for this label (" + config.cancellationLabel + ")");
-  for (var i = 0; i < threads.length; i++) {
-    const message = threads[i].getFirstMessageSubject();
-    const date = parseDate(message, config.prefix);
-    const existingEvent = getExistingEvent(date, config.timeInHours, config.eventName);
-    if (existingEvent) {
-      Logger.log('Deleting event for ', date, config.eventName);
-      existingEvent.deleteEvent();
-    }
-  }
+      const message = threads[i].getMessages()[0].getPlainBody().replace(/(\r\n|\n|\r)/gm, " ");
+      const year = threads[i].getMessages()[0].getDate().getFullYear();
+      // Logger.log(JSON.stringify({message}));
+      const reservationSummary = subject.substr(subject.indexOf(':') + 2);
+      const eventType = getEventType(message);
+      const eventName = `${eventType} - ${reservationSummary}`;
+      const existingEvent = getExistingFutureEvent(eventName);
+      // Logger.log(JSON.stringify({eventType, eventName, existingEvent}));
+      if (subject.startsWith(config.bookingPrefix) && !existingEvent) {
+        const dates = parseDate(message, year);
+        const startDate = dates[0];
+        const endDate = dates[1];
+        const isFutureEvent = startDate > new Date();
+        // Logger.log(JSON.stringify({startDate, endDate}));
+        if (isFutureEvent) {
+          createEvent(startDate, endDate, eventName);
+        }
+      }
+      if (subject.startsWith(config.cancelledPrefix) && existingEvent) {
+        Logger.log('Deleting event for ', eventName);
+        existingEvent.deleteEvent();
+      }
+    }    
   } catch (error) {
     Logger.log(error);
   }
 }
 
 function doWork() {
-  createEventsForBouldering(ClimbingReservation);
-  removeEventsForBouldering(ClimbingReservation);
-
-  createEventsForBouldering(FitnessReservation);
-  removeEventsForBouldering(FitnessReservation);
+  syncCalendar(ClimbingReservation);
 }
+
