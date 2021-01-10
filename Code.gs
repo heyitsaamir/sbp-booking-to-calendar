@@ -1,7 +1,7 @@
 const ClimbingReservation = {
   label: "SBP Booking",
   cancellationLabel: "SBP Cancellation",
-  prefix: "Booking Confirmed: Seattle Bouldering Project - ",
+  prefix: "Booking Confirmed: Seattle Bouldering Project",
   timeInHours: 2,
   eventName: 'Climbing Reservation',
   wordsToSearch: ['Climbing Reservation','Upper Walls Reservations', 'Main Floor Climbing', 'Lower Floor Climbing']
@@ -10,7 +10,7 @@ const ClimbingReservation = {
 const FitnessReservation = {
   label: "SBP Fitness",
   cancellationLabel: "SBP Fitness Cancellation",
-  prefix: "Booking Confirmed: Seattle Bouldering Project - ",
+  prefix: "Booking Confirmed: Seattle Bouldering Project",
   timeInHours: 1.5,
   eventName: 'Fitness Reservation',
   wordsToSearch: [],
@@ -24,6 +24,10 @@ function isDST(d) {
     return Math.max(jan, jul) != d.getTimezoneOffset(); 
 }
 
+function getCurrentYear(d) {
+  return (new Date()).getFullYear();
+}
+
 function getTimezone(date) {
   if (isDST(date)) {
     return 'PDT';
@@ -34,8 +38,17 @@ function getTimezone(date) {
 
 const MainCalendar = CalendarApp.getCalendarsByName(calendarName)[0];
 
-function parseDate(message, subjectPrefix) {
-  const dateString = message.substr(subjectPrefix.length);
+function parseLocation(thread, prefix) {
+  const subject = thread.getFirstMessageSubject();
+  const afterPrefix = subject.substr(prefix.length);
+  const startOfLocation = afterPrefix.search(": ") + ": ".length;
+  const endOfLocation = afterPrefix.search(" - ");
+  return afterPrefix.substr(startOfLocation, endOfLocation - startOfLocation).trim();
+}
+
+function parseDate(subject, year) {
+  const delimeter = " - ";
+  const dateString = subject.substring(subject.substr(subject.search(delimeter) + delimeter.length)).trim();
   const groups = dateString.match(/(\w+) (\d{1,2}), (\d{1,2}:*\d{0,2}) (\w{2})/);
   // Logger.log(groups);
   const month = groups[1];
@@ -57,8 +70,8 @@ function parseDate(message, subjectPrefix) {
     hour = (parseInt(hour) + 12).toString();
   }
   
-  const formattedDateUTC = `${month} ${day} ${hour}:${minute} 2020 UTC`;
-  const formattedDateLocal = `${month} ${day} ${hour}:${minute} 2020 ${getTimezone(new Date(formattedDateUTC))}`;
+  const formattedDateUTC = `${month} ${day} ${hour}:${minute} ${year} UTC`;
+  const formattedDateLocal = `${month} ${day} ${hour}:${minute} ${year} ${getTimezone(new Date(formattedDateUTC))}`;
   const date = new Date(formattedDateLocal);
   // Logger.log(date, formattedDate, dateString);
   return date;
@@ -72,6 +85,10 @@ function getExistingEvent(date, timeInHours, eventName) {
   const endTime = getEndTime(date, timeInHours);
   const events = MainCalendar.getEvents(date, endTime);
   const res =  events.find((event) => { return event.getTitle().search(eventName) >= 0 });
+  if (res) {
+    const title = res.getTitle();
+    Logger.log(title);
+  }
   return res;
 }
 
@@ -92,9 +109,13 @@ function createEvent(date, config, thread) {
   if (tagsInThread.length > 0) {
     tagsAsString = ' (' + tagsInThread.join(', ') + ')';
   }
+  let location = parseLocation(thread, config.prefix);
+  if (location.length > 0) {
+    location = ` (${location})`;
+  }
   
-  const eventName = config.eventName + tagsAsString;
-  MainCalendar.createEvent(eventName, date, endTime)
+  const eventName = config.eventName + location;
+  MainCalendar.createEvent(eventName, date, endTime, { description: tagsAsString })
   Logger.log('Event ' + eventName + 'created', date);
 }
 
@@ -106,7 +127,7 @@ function createEventsForBouldering(config) {
   Logger.log(threads.length + " found for this label (" + config.label + ")");
   for (var i = 0; i < threads.length; i++) {
     const messageSubject = threads[i].getFirstMessageSubject();
-    const date = parseDate(messageSubject, config.prefix);
+    const date = parseDate(messageSubject, threads[i].getLastMessageDate().getFullYear());
     if (!getExistingEvent(date, config.timeInHours, config.eventName)) {
       createEvent(date, config, threads[i]);
     }
@@ -124,7 +145,7 @@ function removeEventsForBouldering(config) {
   Logger.log(threads.length + " found for this label (" + config.cancellationLabel + ")");
   for (var i = 0; i < threads.length; i++) {
     const message = threads[i].getFirstMessageSubject();
-    const date = parseDate(message, config.prefix);
+    const date = parseDate(message, threads[i].getLastMessageDate().getFullYear());
     const existingEvent = getExistingEvent(date, config.timeInHours, config.eventName);
     if (existingEvent) {
       Logger.log('Deleting event for ', date, config.eventName);
