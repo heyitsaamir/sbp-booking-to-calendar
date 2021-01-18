@@ -18,6 +18,10 @@ function isDST(d) {
     return Math.max(jan, jul) != d.getTimezoneOffset(); 
 }
 
+function getCurrentYear(d) {
+  return (new Date()).getFullYear();
+}
+
 function getTimezone(date) {
   if (isDST(date)) {
     return 'PDT';
