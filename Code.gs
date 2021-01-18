@@ -29,8 +29,8 @@ function getTimezone(date) {
 function getEventType(message) {  
   // GScript regex sux
   const groups = message.match(EVENT_FORMAT);
-  Logger.log(JSON.stringify({groups}));
-  return groups[1];
+  // Logger.log(JSON.stringify({groups}));
+  return groups[1].trim();
 }
 
 function timeStrToDate(year, month, day, time, amPm) {
@@ -58,7 +58,7 @@ function timeStrToDate(year, month, day, time, amPm) {
 
 function parseDate(message, year) {
   const groups = message.match(DATE_FORMAT);
-  Logger.log(JSON.stringify({groups}));
+  // Logger.log(JSON.stringify({groups}));
   const month = groups[1];
   const day = groups[2];
   const startTime = groups[3];
@@ -77,7 +77,7 @@ function getExistingFutureEvent(eventName) {
 }
 
 function createEvent(startDate, endDate, eventName) {
-  Logger.log('Creating event for ', startDate);
+  Logger.log(`Creating event ${JSON.stringify({eventName, startDate, endDate})}` );
   MainCalendar.createEvent(eventName, startDate, endDate)
 }
 
@@ -105,7 +105,7 @@ function syncCalendar(config) {
       const eventType = getEventType(message);
       const eventName = `${eventType} - ${reservationSummary}`;
       const existingEvent = getExistingFutureEvent(eventName);
-      // Logger.log(JSON.stringify({eventType, eventName, existingEvent}));
+      Logger.log(JSON.stringify({subject, eventType, eventName, existingEvent}));
       if (subject.startsWith(config.bookingPrefix) && !existingEvent) {
         const dates = parseDate(message, year);
         const startDate = dates[0];
@@ -117,7 +117,7 @@ function syncCalendar(config) {
         }
       }
       if (subject.startsWith(config.cancelledPrefix) && existingEvent) {
-        Logger.log('Deleting event for ', eventName);
+        Logger.log(`Deleting event ${JSON.stringify({eventName})}` );
         existingEvent.deleteEvent();
       }
     }    
