@@ -18,6 +18,10 @@ function isDST(d) {
     return Math.max(jan, jul) != d.getTimezoneOffset(); 
 }
 
+function getCurrentYear(d) {
+  return (new Date()).getFullYear();
+}
+
 function getTimezone(date) {
   if (isDST(date)) {
     return 'PDT';
@@ -81,10 +85,6 @@ function createEvent(startDate, endDate, eventName) {
   MainCalendar.createEvent(eventName, startDate, endDate)
 }
 
-function includesStr(text, searchStr) {
-  return text.startsWith(searchStr);
-}
-
 function syncCalendar(config) {
   try {
     var label = GmailApp.getUserLabelByName(config.label);
@@ -120,7 +120,7 @@ function syncCalendar(config) {
         Logger.log(`Deleting event ${JSON.stringify({eventName})}` );
         existingEvent.deleteEvent();
       }
-    }    
+    }  
   } catch (error) {
     Logger.log(error);
   }
