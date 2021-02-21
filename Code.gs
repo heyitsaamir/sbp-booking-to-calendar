@@ -4,12 +4,13 @@ const ClimbingReservation = {
   bookingPrefix: "Booking Confirmed",
 }
 
-//const calendarName = 'Duy Hai Bui';
-//const MainCalendar = CalendarApp.getCalendarByName(calendarName)[0];
-const MainCalendar = CalendarApp.getDefaultCalendar();
+const CalendarConfig = {
+  calendar: CalendarApp.getCalendarsByName('AamBush Bouldering Calendar')[0],
+}
 
 const DATE_FORMAT = /(\w+) (\d{1,2}), (\d{1,2}:*\d{0,2}) (\w{2}) to (\d{1,2}:*\d{0,2}) (\w{2})/;
 const EVENT_FORMAT = /Event\W+(.+)\W*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/;
+const PARTICIPANTS = /Participants\W+(.*)\W*(== Additional Details)/;
 const MAX_BOOKING_RANGE = 2 * 7 * 24 * 60 * 60 * 1000;
 
 function isDST(d) {
@@ -49,7 +50,7 @@ function timeStrToDate(year, month, day, time, amPm) {
     minute = "00";
   }
   
-  if (amPm === 'PM') {
+  if (amPm === 'PM' && hour !== "12") {
     hour = (parseInt(hour) + 12).toString();
   }
   
@@ -75,14 +76,20 @@ function parseDate(message, year) {
 function getExistingFutureEvent(eventName) {
   const startDate = new Date();
   const endDate = new Date(startDate.getTime() + MAX_BOOKING_RANGE);
-  const events = MainCalendar.getEvents(startDate, endDate);
+  const events = CalendarConfig.calendar.getEvents(startDate, endDate);
   const res = events.find((event) => { return event.getTitle().includes(eventName) });
   return res;
 }
 
-function createEvent(startDate, endDate, eventName) {
-  Logger.log(`Creating event ${JSON.stringify({eventName, startDate, endDate})}` );
-  MainCalendar.createEvent(eventName, startDate, endDate)
+function getDescription(message) {
+  const groups = message.match(PARTICIPANTS);
+  const participants = groups[1];
+  return `Participants: ${participants}`;
+}
+
+function createEvent(startDate, endDate, eventName, description) {
+  // Logger.log(`Creating event ${JSON.stringify({eventName, startDate, endDate})}` );
+  CalendarConfig.calendar.createEvent(eventName, startDate, endDate, { description });
 }
 
 function syncCalendar(config) {
@@ -105,7 +112,7 @@ function syncCalendar(config) {
       const eventType = getEventType(message);
       const eventName = `${eventType} - ${reservationSummary}`;
       const existingEvent = getExistingFutureEvent(eventName);
-      Logger.log(JSON.stringify({subject, eventType, eventName, existingEvent}));
+      // Logger.log(JSON.stringify({subject, eventType, eventName, existingEvent}));
       if (subject.startsWith(config.bookingPrefix) && !existingEvent) {
         const dates = parseDate(message, year);
         const startDate = dates[0];
@@ -113,7 +120,9 @@ function syncCalendar(config) {
         const isFutureEvent = startDate > new Date();
         // Logger.log(JSON.stringify({startDate, endDate}));
         if (isFutureEvent) {
-          createEvent(startDate, endDate, eventName);
+          const description = getDescription(message);
+          Logger.log(`Creating event ${JSON.stringify({eventName})}`);
+          createEvent(startDate, endDate, eventName, description);
         }
       }
       if (subject.startsWith(config.cancelledPrefix) && existingEvent) {
