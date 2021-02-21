@@ -1,4 +1,4 @@
-# sbp-booking-to-calendar
+# rgpro-booking-to-calendar
 Takes booking emails from RockGymPro and puts them in your google calendar. Tested for SBP and Stone Gardens Seattle climbing and fitness reservations
 
 1. Create a filter in your gmail and label them with `RGPro Booking`
