@@ -1,3 +1,38 @@
+//// VARIABLES ////
+const CALENDAR_NAME = 'Hai Climbing Calendar'
+const DRY_RUN = false
+const LOGGED_TYPES = [
+  'INFO',
+  //'REGEX',
+  //'DATE',
+  'CALENDAR',
+  //'EMAIL',
+  //'EVENT_DETAILS',
+];
+
+//// Utility functions ////
+
+function toStr(obj) {
+  return JSON.stringify(obj);
+}
+
+function log(msg, logType = 'INFO') {
+  if (LOGGED_TYPES.includes(logType)) {
+    Logger.log(msg);
+  }
+}
+
+function safeExecute(func, ...args) {
+  if (DRY_RUN) {
+    log(func.name);
+    log(toStr(args));
+  } else {
+    func(args);
+  }
+}
+
+///////////////////////////
+
 const ClimbingReservation = {
   label: "RGPro Booking",
   cancelledPrefix: "Booking Cancelled",
@@ -5,7 +40,7 @@ const ClimbingReservation = {
 }
 
 const CalendarConfig = {
-  calendar: CalendarApp.getCalendarsByName('AamBush Bouldering Calendar')[0],
+  calendar: CalendarApp.getCalendarsByName(CALENDAR_NAME)[0],
 }
 
 const DATE_FORMAT = /(\w+) (\d{1,2}), (\d{1,2}:*\d{0,2}) (\w{2}) to (\d{1,2}:*\d{0,2}) (\w{2})/;
@@ -34,7 +69,7 @@ function getTimezone(date) {
 function getEventType(message) {  
   // GScript regex sux
   const groups = message.match(EVENT_FORMAT);
-  // Logger.log(JSON.stringify({groups}));
+  log(toStr({groups}), 'REGEX');
   return groups[1].trim();
 }
 
@@ -56,14 +91,14 @@ function timeStrToDate(year, month, day, time, amPm) {
   
   const formattedDateUTC = `${month} ${day} ${hour}:${minute} ${year} UTC`;
   const formattedDateLocal = `${month} ${day} ${hour}:${minute} ${year} ${getTimezone(new Date(formattedDateUTC))}`;
-  // Logger.log(JSON.stringify({formattedDateLocal}));
+  log(toStr({formattedDateLocal}), 'DATE');
   const date = new Date(formattedDateLocal);
   return date;
 }
 
 function parseDate(message, year) {
   const groups = message.match(DATE_FORMAT);
-  // Logger.log(JSON.stringify({groups}));
+  log(toStr({groups}), 'REGEX');
   const month = groups[1];
   const day = groups[2];
   const startTime = groups[3];
@@ -83,16 +118,18 @@ function getExistingFutureEvent(eventName) {
 
 function getDescription(message) {
   const groups = message.match(PARTICIPANTS);
+  log(toStr({groups}), 'REGEX');
   const participants = groups[1];
   return `Participants: ${participants}`;
 }
 
 function createEvent(startDate, endDate, eventName, description) {
-  // Logger.log(`Creating event ${JSON.stringify({eventName, startDate, endDate})}` );
-  CalendarConfig.calendar.createEvent(eventName, startDate, endDate, { description });
+  log(`Creating event ${toStr({eventName, startDate, endDate})}`);
+  safeExecute(CalendarConfig.calendar.createEvent, eventName, startDate, endDate, { description });
 }
 
 function syncCalendar(config) {
+  log(toStr(CalendarApp.getAllCalendars().map(cal => cal.getName())), 'CALENDAR');
   try {
     var label = GmailApp.getUserLabelByName(config.label);
     // Oldest first
@@ -100,38 +137,38 @@ function syncCalendar(config) {
     
     for (var i = 0; i < threads.length; i++) {
       const subject = threads[i].getFirstMessageSubject();
-      // Logger.log(JSON.stringify({subject}));
+      log(toStr({subject}), 'EMAIL');
       if (!subject.startsWith(config.bookingPrefix) && !subject.startsWith(config.cancelledPrefix)){
         continue;
       }
 
       const message = threads[i].getMessages()[0].getPlainBody().replace(/(\r\n|\n|\r)/gm, " ");
       const year = threads[i].getMessages()[0].getDate().getFullYear();
-      // Logger.log(JSON.stringify({message}));
+      log(toStr({message}), 'EMAIL');
       const reservationSummary = subject.substr(subject.indexOf(':') + 2);
       const eventType = getEventType(message);
       const eventName = `${eventType} - ${reservationSummary}`;
       const existingEvent = getExistingFutureEvent(eventName);
-      // Logger.log(JSON.stringify({subject, eventType, eventName, existingEvent}));
+      log(toStr({subject, eventType, eventName, existingEvent}), 'EVENT_DETAILS');
       if (subject.startsWith(config.bookingPrefix) && !existingEvent) {
         const dates = parseDate(message, year);
         const startDate = dates[0];
         const endDate = dates[1];
         const isFutureEvent = startDate > new Date();
-        // Logger.log(JSON.stringify({startDate, endDate}));
+        log(toStr({startDate, endDate}), 'DATE');
         if (isFutureEvent) {
           const description = getDescription(message);
-          Logger.log(`Creating event ${JSON.stringify({eventName})}`);
+          log(`Creating event ${toStr({eventName})}`);
           createEvent(startDate, endDate, eventName, description);
         }
       }
       if (subject.startsWith(config.cancelledPrefix) && existingEvent) {
-        Logger.log(`Deleting event ${JSON.stringify({eventName})}` );
-        existingEvent.deleteEvent();
+        log(`Deleting event ${toStr({eventName})}`);
+        safeExecute(existingEvent.deleteEvent);
       }
     }  
   } catch (error) {
-    Logger.log(error);
+    log(error);
   }
 }
 
