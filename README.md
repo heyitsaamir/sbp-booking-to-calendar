@@ -1,10 +1,9 @@
-# sbp-booking-to-calendar
-Takes booking emails from Seattle Bouldering Project and puts them in your google cal
+# rgpro-booking-to-calendar
+Takes booking emails from RockGymPro and puts them in your google calendar. Tested for SBP and Stone Gardens Seattle climbing and fitness reservations
 
-1. Create a filter in your gmail that takes the booking emails and labels them with `SBP Booking`
-2. Create a filter in your gmail that takes the cancellation emails and labels them with `SBP Cancellation`
-3. Do the above two for Fitness (`SBP Fitness` and `SBP Fitness Cancellation`)
-4. Copy paste the script to https://script.google.com/
-5. Change the script with your own calendar name. (make any other adjustments needed to the consts)
+1. Create a filter in your gmail and label them with `RGPro Booking`
+2. Copy paste the script to https://script.google.com/
+3. Change the script with your own calendar name
+4. Make any other adjustments needed to the constants
 6. Save it.
-7. Add a trigger to run `doWork` function. I run it daily at 1am.
+7. Add a trigger to run `doWork` function. I run it every 30 minutes
