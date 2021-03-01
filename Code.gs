@@ -27,7 +27,7 @@ function safeExecute(func, ...args) {
     log(func.name);
     log(toStr(args));
   } else {
-    func(args);
+    func(...args);
   }
 }
 
